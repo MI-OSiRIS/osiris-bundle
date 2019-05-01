@@ -1,0 +1,127 @@
+#!/bin/bash
+
+SDIR="$( cd "$( dirname "$0" )" && pwd )"
+CREDS=$HOME/.aws/credentials
+MROOT="/tmp/${USER}-fuse"
+
+# over-ride variables in osiris-config if necessary
+. ${SDIR}/osiris-config
+
+function usage {
+    echo -e "\nUsage: osiris-mount [ -u ] [ -n ] [ <bucket1> ] [ <bucket2> ] [ ... ]"
+    echo -e "\n<bucket> is an S3 bucket to mount, if not specified mount all S3 buckets owned by user"
+    echo -e "-n will create the bucket(s) specified on command line before mounting (it's ok if they already exist)"
+    echo -e "-u will umount and remove tmp directories (calls fusermount -u on each mountpoint)\n"
+
+}
+
+# be sure to shift any arguments that don't result in an exit condition so we can safely 
+# pickup a list of buckets from the positionals
+while getopts ":unh" opt; do
+  case $opt in
+    u)
+        shopt -s nullglob
+        for MNT in ${MROOT}/*; do
+            fusermount -u $MNT
+            rmdir $MNT
+        done
+        rmdir /tmp/${USER}-fuse
+        exit $?
+      ;;
+    n)
+        CREATE=true
+        shift $((OPTIND-1))
+        ;;
+    h)
+        usage
+        exit 0
+        ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [ ! -f $CREDS ]; then
+        echo "$CREDS not found, please create with contents:"
+        echo "[${AWSPROFILE}]"
+        echo "aws_access_key_id=<keyid>"
+        echo "aws_secret_access_key=<secret>"
+        exit 1
+fi
+
+# determine reachable endpoint
+S3URL=`${SDIR}/detect-endpoint.py`
+
+# base AWS command
+AWS="${SDIR}/awscli/bin/aws s3 --endpoint-url $S3URL --profile=$AWSPROFILE"
+
+# determine list of user buckets
+AWSOUT=`${AWS} ls`
+
+if [ $? -eq 0 ]; then
+    LSBUCKETS=`echo "$AWSOUT" | awk '{print $3}'`
+else
+    echo "Error listing buckets"
+    exit 1
+fi
+
+if [ $# -gt 0 ]; then
+    BUCKETS="$@"
+else
+    BUCKETS="${LSBUCKETS}"
+fi
+
+# create a default bucket if none found and none specified
+if [ -z "$BUCKETS" ]; then
+	NEWBUCKET=`echo $COU-$AWSPROFILE | awk '{print tolower($0)}'`
+
+	${AWS} mb "s3://${NEWBUCKET}"
+	if [ $? -ne 0 ]; then
+		exit 1
+	fi
+fi
+
+for BKT in `echo $BUCKETS`; do
+    MPATH="${MROOT}/${BKT}"
+
+    if [ "$CREATE" = true ]; then
+        if [[ "${LSBUCKETS}" != *"${BKT}"* ]]; then
+            echo "Ensuring $BKT is created"
+            OUTPUT=`${AWS} mb "s3://${BKT}" 2>&1`
+
+            # it is possible a user is mounting a bucket they don't own
+            # this would not show up in the bucket ls and creating it will fail but that is not necessarily a problem
+
+            if [ $? -ne 0 ]; then
+                if [[ "${OUTPUT}" == *"BucketAlreadyExists"* ]]; then
+                    echo " * Bucket exists already"
+                else
+                    # bucket doesn't exist and there was an error creating it, continue
+                    echo " * Error creating bucket"
+                    continue
+                fi
+            fi
+        fi
+    fi
+
+    if [ "`stat -f -c %T $MPATH 2>&1`" = 'fuseblk' ]; then 
+        echo "Fuse block device already mounted at $MPATH"
+        continue
+    fi
+
+    echo "Mounting $BKT at $MPATH"
+
+	if [ ! -d "$MPATH" ]; then 
+		mkdir -p -m 0700 "$MPATH"
+	fi
+
+	${SDIR}/s3fs "$BKT" "$MPATH" \
+	-o profile="${AWSPROFILE}" -o use_path_request_style \
+	-o instance_name="$BKT" \
+	-o url="${S3URL}"
+done
+
+

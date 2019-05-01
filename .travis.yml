@@ -1,0 +1,37 @@
+language: shell
+before_install:
+- sudo apt-get install -y libxml2-dev libfuse-dev fuse libcurl4-openssl-dev libssl-dev
+script: "./build-bundle.sh"
+# only build on the 'test' branch or on tags
+branches:
+  only:
+  - /^v[0-9]/
+  - test
+
+deploy:
+  - provider: releases
+    skip_cleanup: true
+    api_key:
+      secure: yfKNUJsBa0rbPoeHid4AHvBQ2jKPdN/A4OTJ+BUf3+OsjtVEha2lZi5lOalYaxTPKcNcsms4IsYY1sIhSawzbQHR3I2YJDLiYY297XIMkU73kXu3je3WwEY6viOIdCXhev/2CebyXxV6/I2TpOge6sDrXexIzlc6W/Ca3tCIgTHCX1NNaB+N/4lRxhr9qbjiNZYjbMLjm1osN6TnmVetJ9GvzpndlTi9ROt1owzFzySNFeRDlmFQhXUmQr1UcQ1jtMP3fJgQg5WhSC3anB7D+9f3T4FE9hBUwZDOS0KtZlIFpgPzAegGUldtyJKkM7yLWR++q+9GoiKiLhwGCh+7Lux6JyzGnwMP0PFlM7Rt7zyhgmGajMMIblKEFLRt/WjmU6tTtejqAATTdHDYhHDoh6YtKFO33GjOXW1nodVoiMSvUjqzbKNqUoLvGuvHjcUTXmAZ8DslubvSgfIZ0F15k8sy0DtVziX5zoQlI4IZDNA704AJ371BkvkN+9KgoZey0aXoJAtsi9Pmz18tfCQUrDBAAf2hSe2uG8UMwIEcyAfO4NJGCrBJ6tvACWRAndMnKzY91Z3F+TQgFy1jdPG+yf7OG6F/gaH2txscEz1Jhy57qXQX+qpRP5j2hXaibx7FuhGWCqUuy29jadQkx6qAGngdalW8xwxm37HJ8TFyTkM=
+    file: osiris-bundle.tgz
+    on:
+      repo: MI-OSiRIS/osiris-bundle
+      tags: true
+  # create draft release from test branch
+  - provider: releases
+    skip_cleanup: true
+    draft: true
+    api_key:
+      secure: yfKNUJsBa0rbPoeHid4AHvBQ2jKPdN/A4OTJ+BUf3+OsjtVEha2lZi5lOalYaxTPKcNcsms4IsYY1sIhSawzbQHR3I2YJDLiYY297XIMkU73kXu3je3WwEY6viOIdCXhev/2CebyXxV6/I2TpOge6sDrXexIzlc6W/Ca3tCIgTHCX1NNaB+N/4lRxhr9qbjiNZYjbMLjm1osN6TnmVetJ9GvzpndlTi9ROt1owzFzySNFeRDlmFQhXUmQr1UcQ1jtMP3fJgQg5WhSC3anB7D+9f3T4FE9hBUwZDOS0KtZlIFpgPzAegGUldtyJKkM7yLWR++q+9GoiKiLhwGCh+7Lux6JyzGnwMP0PFlM7Rt7zyhgmGajMMIblKEFLRt/WjmU6tTtejqAATTdHDYhHDoh6YtKFO33GjOXW1nodVoiMSvUjqzbKNqUoLvGuvHjcUTXmAZ8DslubvSgfIZ0F15k8sy0DtVziX5zoQlI4IZDNA704AJ371BkvkN+9KgoZey0aXoJAtsi9Pmz18tfCQUrDBAAf2hSe2uG8UMwIEcyAfO4NJGCrBJ6tvACWRAndMnKzY91Z3F+TQgFy1jdPG+yf7OG6F/gaH2txscEz1Jhy57qXQX+qpRP5j2hXaibx7FuhGWCqUuy29jadQkx6qAGngdalW8xwxm37HJ8TFyTkM=
+    file: osiris-bundle.tgz
+    on:
+      repo: MI-OSiRIS/osiris-bundle
+      branch: test
+      tags: false
+
+
+
+
+    # oauth key is with user miosiris-auto which has been granted external collaborator access to the osiris-bundle repo (read/write)
+
+

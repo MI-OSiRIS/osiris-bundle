@@ -1,0 +1,96 @@
+#!/bin/bash
+
+# sample mount initialization wrapper script
+# This is can be distributed with secret key and COU filled in
+# or will run the 'aws configure' tool if credentials not filled in
+
+# we are assuming home directory installation but this can be modified to use a different path
+# osiris-mount utility will auto-detect the directory it is running from
+
+SDIR=$HOME
+BUNDLE=osiris-bundle
+CONFIG=${SDIR}/${BUNDLE}/osiris-config
+
+# name profiles by S3 username from comanage
+AWSPROFILE=
+
+# aws key
+AWSKEY=
+AWSSECRET=
+COU=
+
+# if AWSPROFILE or COU are set already then pick them up here
+if [ -f $CONFIG ]; then 
+	source $CONFIG
+    echo -e "\n=> Setting S3 userid '$AWSPROFILE' and COU '$COU' from $CONFIG"
+fi
+
+CMW='https://comanage.osris.org'
+DOC='http://www.osris.org/documentation'
+DL='https://github.com/MI-OSiRIS/osiris-bundle/releases/latest/download/osiris-bundle.tgz'
+CREDS=$HOME/.aws/credentials
+
+# prompt for value if not set already
+# set variable specified by string argument in $2
+function getval {
+    PROMPT=$1
+    SUBVAR=$2
+    while [[ -z ${!SUBVAR} ]] && read -p "${1}: " ${SUBVAR}  ; do
+        [[ -z ${!SUBVAR} ]] && echo "Please enter a value or CTRL-C to exit script"
+    done
+}
+
+if [ ! -d ${SDIR}/${BUNDLE} ]; then
+	echo -e "\n=> OSiRIS client bundle not found, fetching from $DL"
+	curl -s -L $DL --output ${BUNDLE}.tgz
+	tar -C ${SDIR} -xzf ${BUNDLE}.tgz
+fi
+
+if [ ! -d ${SDIR}/${BUNDLE}/awscli ]; then
+    echo -e "\n=> Installing awscli tools into ${SDIR}/${BUNDLE} (required for setup)\n"
+    curl -s "https://s3.amazonaws.com/aws-cli/awscli-bundle.zip" -o "awscli-bundle.zip"
+    unzip -q awscli-bundle.zip
+
+    # full paths required for args to installer 
+    ./awscli-bundle/install -i "${SDIR}/${BUNDLE}/awscli" -b "${SDIR}/${BUNDLE}/aws"
+
+    /bin/rm -rf awscli-bundle*
+
+fi
+
+    # remove symlink, not needed and is absolute path
+    # rm ${SDIR/osiris-bundle/aws
+
+    # replace interpreter absolute path so it always finds the python in same dir as 'aws' command
+    # sed -i "1s/.*//" ${SDIR}/${BUNDLE}/awscli/bin/aws
+    # ( echo '##!/bin/sh' ; echo '"exec" "`dirname $0`/python" "$0" "$@"' ) \
+    # | cat - osiris-bundle/awscli/bin/aws  > aws \
+    # && chmod +x aws && mv aws osiris-bundle/awscli/bin/aws
+
+echo -e "\n=> Configuring S3 credentials and OSiRIS information"
+
+echo -e "\nConfiguration values can be obtained from $CMW under 'Ceph Credentials' and 'My Profile' (top right dropdown menu)"
+echo -e "\nMore documentation is available at $DOC \n"
+
+getval "Please enter OSiRIS virtual organization (COU)" 'COU'
+getval "Please enter S3 user id" 'AWSPROFILE'
+getval "Please enter Ceph S3 access key" 'AWSKEY'
+getval "Please enter Ceph S3 secret key" 'AWSSECRET'
+
+echo -e "\nRunning configure tool to create or update ~/.aws/credentials"
+${SDIR}/${BUNDLE}/awscli/bin/aws configure set --profile=$AWSPROFILE aws_access_key_id $AWSKEY 
+${SDIR}/${BUNDLE}/awscli/bin/aws configure set --profile=$AWSPROFILE aws_secret_access_key $AWSSECRET 
+
+COULC=`echo $COU | awk '{print tolower($0)}'`
+
+echo -e "\nSetting COU and AWSPROFILE in ${SDIR}/${BUNDLE}/osiris-config"
+cat <<EOF > ${SDIR}/${BUNDLE}/osiris-config
+COU=${COU}
+AWSPROFILE=${AWSPROFILE}
+EOF
+
+echo -e "\n=> Setup is complete!"  
+echo -e "=> Run ${SDIR}/${BUNDLE}/osiris-mount to mount your buckets under /tmp/fuse-$USER."
+echo -e "=> If you have not created any buckets osiris-mount will create one for you named $COULC-$AWSPROFILE"
+echo -e "=> New buckets you create must be prefixed with your COU name lower-cased:  $COULC \n" 
+
