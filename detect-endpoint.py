@@ -45,9 +45,9 @@ for region in checkorder:
 		break
 
 if use_region == False:
-	print "No reachable rgw endpoint was found"
+	print('No reachable rgw endpoint was found')
 	sys.exit(1)
 		
-print "{0}{1}".format(http,construct_fqdn(serverlist[use_region]))
+print('{0}{1}'.format(http,construct_fqdn(serverlist[use_region])))
 
 
