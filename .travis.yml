@@ -1,6 +1,37 @@
 language: shell
+
+# build newer version of libcurl with support for 3FS_CURLOPT_KEEP_SENDING_ON_ERROR and CURLOPT_SSL_ENABLE_ALPN
+# [WAN] curl.cpp:ResetHandle(1855): The CURLOPT_SSL_ENABLE_ALPN option could not be unset. S3 server does not support ALPN, then this option should be disabled to maximize performance. you need to use libcurl 7.36.0 or later.
+# [WAN] curl.cpp:ResetHandle(1858): The S3FS_CURLOPT_KEEP_SENDING_ON_ERROR option could not be set. For maximize performance you need to enable this option and you should use libcurl 7.51.0 or later.
+
 before_install:
-- sudo apt-get install -y libxml2-dev libfuse-dev fuse libcurl4-openssl-dev libssl-dev
+- sudo apt-get install -y libxml2-dev libfuse-dev fuse 
+- wget https://www.openssl.org/source/openssl-1.1.1c.tar.gz
+- tar -xzf openssl-1.1.1c.tar.gz
+- cd openssl-1.1.1c
+- ./config no-weak-ssl-ciphers no-ssl2 no-ssl3 no-comp
+- make >/dev/null || make 
+- sudo make install >/dev/null 
+- sudo ldconfig 
+- cd ..
+- wget https://github.com/nghttp2/nghttp2/releases/download/v1.39.1/nghttp2-1.39.1.tar.bz2
+- tar -xjf nghttp2-1.39.1.tar.bz2
+- cd nghttp2-1.39.1
+- ./configure 
+- make && sudo make install
+- sudo ldconfig
+- cd ..
+- wget https://curl.haxx.se/download/curl-7.65.1.tar.bz2
+- tar -xjf curl-7.65.1.tar.bz2
+- cd curl-7.65.1
+- ./configure --with-ca-path=/etc/ssl/certs --with-nghttp2
+- make && sudo make install && sudo ldconfig 
+- cd ..
+
+# openssl make/install is super verbose and known to work
+# redirected stdout bc full output is too much for travis and has to be viewed as raw log
+# these packages were replaced by building curl/openssl from source: libcurl4-openssl-dev libssl-dev 
+
 script: "./build-bundle.sh"
 # only build on the 'test' branch or on tags
 branches:
@@ -28,10 +59,4 @@ deploy:
       repo: MI-OSiRIS/osiris-bundle
       branch: test
       tags: false
-
-
-
-
-    # oauth key is with user miosiris-auto which has been granted external collaborator access to the osiris-bundle repo (read/write)
-
 
