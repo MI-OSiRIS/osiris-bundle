@@ -8,16 +8,17 @@ MROOT="/tmp/${USER}-fuse"
 . ${SDIR}/osiris-config
 
 function usage {
-    echo -e "\nUsage: osiris-mount [ -u ] [ -n ] [ <bucket1> ] [ <bucket2> ] [ ... ]"
+    echo -e "\nUsage: osiris-mount [ -u ] [ -n ] [-R region ] [ bucket1 ] [ bucket2 ] [ ... ]"
     echo -e "\n<bucket> is an S3 bucket to mount, if not specified mount all S3 buckets owned by user"
     echo -e "-n will create the bucket(s) specified on command line before mounting (it's ok if they already exist)"
-    echo -e "-u will umount and remove tmp directories (calls fusermount -u on each mountpoint)\n"
+    echo -e "-u will umount and remove tmp directories (calls fusermount -u on each mountpoint)"
+    echo -e "-R <region> [,region ] [ ... ] will limit connection to regions in order specified.  Comma separate multiple values (no spaces).  Options:  all,um,msu,wsu,vai\n"
 
 }
 
 # be sure to shift any arguments that don't result in an exit condition so we can safely 
 # pickup a list of buckets from the positionals
-while getopts ":unh" opt; do
+while getopts ":unhR:" opt; do
   case $opt in
     u)
         shopt -s nullglob
@@ -30,6 +31,10 @@ while getopts ":unh" opt; do
       ;;
     n)
         CREATE=true
+        shift $((OPTIND-1))
+        ;;
+    R)
+        REGIONS="${OPTARG}"
         shift $((OPTIND-1))
         ;;
     h)
@@ -53,7 +58,15 @@ if [ ! -f $CREDS ]; then
 fi
 
 # determine reachable endpoint
-S3URL=`${SDIR}/detect-endpoint.py`
+# we'll leave validity checking on the regions to the script and catch the return value
+S3URL=`${SDIR}/detect-endpoint.py $REGIONS`
+
+if [ $? -ne 0 ]; then
+    echo -e "Unable to determine a reachable OSiRIS S3 region\n"
+    exit 1
+fi
+
+echo -e "\nUsing OSiRIS S3 region URL $S3URL\n"
 
 # base AWS command
 AWS="${SDIR}/awscli/bin/aws s3 --endpoint-url $S3URL --profile=$AWSPROFILE"
