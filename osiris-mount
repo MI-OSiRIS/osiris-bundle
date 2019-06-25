@@ -8,17 +8,35 @@ MROOT="/tmp/${USER}-fuse"
 . ${SDIR}/osiris-config
 
 function usage {
-    echo -e "\nUsage: osiris-mount [ -u ] [ -n ] [-R region ] [ bucket1 ] [ bucket2 ] [ ... ]"
-    echo -e "\n<bucket> is an S3 bucket to mount, if not specified mount all S3 buckets owned by user"
-    echo -e "-n will create the bucket(s) specified on command line before mounting (it's ok if they already exist)"
-    echo -e "-u will umount and remove tmp directories (calls fusermount -u on each mountpoint)"
-    echo -e "-R <region> [,region ] [ ... ] will limit connection to regions in order specified.  Comma separate multiple values (no spaces).  Options:  all,um,msu,wsu,vai\n"
+cat <<EOF
 
+Usage: osiris-mount [ -u ] [ -n ] [ -R region ] [ -P <COU> ] [ -O '<options>' ] [ bucket1 ] [ bucket2 ] [ ... ]
+    
+    <bucket> is an S3 bucket to mount, if not specified mount all S3 buckets owned by user
+    
+    -n will create the bucket(s) specified on command line before mounting (it's ok if they already exist)
+    
+    -P <COU> will place new buckets into COU.  Case sensitive, must match a COU you belong to.  
+        * Only relevant if you belong to multiple OSiRIS COU / Virtual Org
+        * You can also set default placement for all new buckets in OSiRIS COmanage
+        * Not possible to modify placement of existing buckets
+
+    -u will umount and remove tmp directories (calls fusermount -u on each mountpoint)"
+    
+    -O to specify quoted list of additional options to s3fs mount. 
+        * Example (enable debugging output): '-o curldbg -d -d -f' 
+    
+    -R <region> [,region ] [ ... ] will limit connection to regions in order specified.  
+        * Comma separate multiple values (no spaces).  Options:  all,um,msu,wsu,vai
+        * Tool will auto-detect reachable OSiRIS regions only from the list specified 
+        * Default is equivalent to 'all'
+
+All flags and positional arguments are optional.
+
+EOF
 }
 
-# be sure to shift any arguments that don't result in an exit condition so we can safely 
-# pickup a list of buckets from the positionals
-while getopts ":unhR:" opt; do
+while getopts ":unhR:O:P:" opt; do
   case $opt in
     u)
         shopt -s nullglob
@@ -31,11 +49,15 @@ while getopts ":unhR:" opt; do
       ;;
     n)
         CREATE=true
-        shift $((OPTIND-1))
+        ;;
+    P) 
+        BUCKET_PLACEMENT="--region=:${OPTARG}"
         ;;
     R)
         REGIONS="${OPTARG}"
-        shift $((OPTIND-1))
+        ;;
+    O) 
+        S3FS_OPTIONS="${OPTARG}"
         ;;
     h)
         usage
@@ -48,6 +70,10 @@ while getopts ":unhR:" opt; do
       ;;
   esac
 done
+
+
+# shift argument pointer to pickup a list of buckets from the remaining non-option args
+shift $((OPTIND-1))
 
 if [ ! -f $CREDS ]; then
         echo "$CREDS not found, please create with contents:"
@@ -66,7 +92,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo -e "\nUsing OSiRIS S3 region URL $S3URL\n"
+echo -e "\nUsing OSiRIS S3 region URL $S3URL"
 
 # base AWS command
 AWS="${SDIR}/awscli/bin/aws s3 --endpoint-url $S3URL --profile=$AWSPROFILE"
@@ -103,20 +129,23 @@ for BKT in `echo $BUCKETS`; do
     if [ "$CREATE" = true ]; then
         if [[ "${LSBUCKETS}" != *"${BKT}"* ]]; then
             echo "Ensuring $BKT is created"
-            OUTPUT=`${AWS} mb "s3://${BKT}" 2>&1`
+            OUTPUT=`${AWS} $BUCKET_PLACEMENT mb "s3://${BKT}" 2>&1`
 
             # it is possible a user is mounting a bucket they don't own
             # this would not show up in the bucket ls and creating it will fail but that is not necessarily a problem
 
             if [ $? -ne 0 ]; then
                 if [[ "${OUTPUT}" == *"BucketAlreadyExists"* ]]; then
-                    echo " * Bucket exists already"
+                    echo " * Bucket exists already - owned by someone else.  Will mount if you have permissions."
                 else
                     # bucket doesn't exist and there was an error creating it, continue
-                    echo " * Error creating bucket"
-                    continue
+                    echo -e " * Error creating bucket"
+                    echo "* ${OUTPUT}"
+                    exit 1
                 fi
             fi
+        else
+            echo "Bucket ${BKT} already exists"
         fi
     fi
 
@@ -134,7 +163,7 @@ for BKT in `echo $BUCKETS`; do
 	${SDIR}/s3fs "$BKT" "$MPATH" \
 	-o profile="${AWSPROFILE}" -o use_path_request_style \
 	-o instance_name="$BKT" \
-	-o url="${S3URL}"
+	-o url="${S3URL}" ${S3FS_OPTIONS}
 done
 
 
