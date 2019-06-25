@@ -15,6 +15,29 @@ The default behaviour is to list all of your S3 buckets and mount each one under
 
 Usage of the client bundle for batch compute jobs assumes you have a consistent $HOME directory and can run the configure script first on a login interactive node.  Once the configuration script is run the osiris-mount utility does not require interaction to mount your buckets.  You can run the configuration script multiple times to change or add new credentials.  The credentials used are determined by the AWSPROFILE setting in osiris-bundle/osiris-config.  This setting can also be specified with the -p option to osiris-mount.  
 
+    Usage: osiris-mount [ -u ] [ -n ] [ -R region ] [ -P <COU> ] [ -O '<options>' ] [ bucket1 ] [ bucket2 ] [ ... ]
+
+        <bucket> is an S3 bucket to mount, if not specified mount all S3 buckets owned by user
+        
+        -n will create the bucket(s) specified on command line before mounting
+        
+        -P <COU> will place new buckets into COU.  Case sensitive, must match a COU you belong to.  
+            * Only relevant if you belong to multiple OSiRIS COU / Virtual Org
+            * You can also set default placement for all new buckets in OSiRIS COmanage
+            * Not possible to modify placement of existing buckets
+
+        -u will umount and remove tmp directories (calls fusermount -u on each mountpoint)
+        
+        -O to specify quoted list of additional options to s3fs mount. 
+            * Example (enable debugging output): '-o curldbg -d -d -f' 
+        
+        -R <region> [,region ] [ ... ] will limit connection to regions in order specified.  
+            * Comma separate multiple values (no spaces).  Options:  all,um,msu,wsu,vai
+            * Tool will auto-detect reachable OSiRIS regions only from the list specified 
+            * Default is equivalent to 'all'
+
+    All flags and positional arguments are optional.
+
 ### Example:
 
 Download the bundle:

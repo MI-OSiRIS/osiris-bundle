@@ -63,6 +63,8 @@ if [ $? -eq 0 ]; then
 	mv s3fs-*.AppImage osiris-bundle/s3fs
 fi
 
+mv README.md osiris-bundle/README
+
 # copy our other tools into bundle directory
 /bin/cp -f \
 detect-endpoint.py \
